@@ -24,7 +24,7 @@ public class ArchiveUtils {
 
     public static void archive(File srcFile, boolean gzip, boolean includeDir) throws Exception {
         String ext = gzip ? ".tar.gz" : ".tar";
-        File destPath = FileUtils.getFile(srcFile.getParent(), srcFile.getName(), ext);
+        File destPath = FileUtils.getFile(srcFile.getParent(), srcFile.getName() + ext);
         archive(srcFile, destPath, gzip, includeDir);
     }
 
@@ -45,6 +45,9 @@ public class ArchiveUtils {
      * @throws Exception
      */
     public static void archive(File srcFile, File destFile, boolean gzip, boolean includeDir) throws Exception {
+        if (destFile.getParentFile().equals(srcFile)) {
+            throw new IOException("The path of destFile is not allowed equal to srcPath " + srcFile);
+        }
         TarArchiveOutputStream tarOut = null;
         try {
             if (gzip) {
@@ -235,15 +238,27 @@ public class ArchiveUtils {
     public static void main(String[] args) {
         PrintStream out = System.out;
         PrintStream err = System.err;
-        final String usage = "archive <-c|-x> <archiveFile> <Path> [-g] [-i]";
+        final String usage = "archive <-c|-x> <archiveFile> <path> [-g] [-i]\narchive <-ca|-xa> <path> [-g] [-i]";
         if (args.length < 3) {
             err.println(usage);
             System.exit(1);
         }
         String archiveFile = "", path = "";
-        boolean create = true, gzip = false, includeDir = false;
+        boolean create = true, gzip = false, includeDir = false, autoCreate = true;
         for (int i = 0; i < args.length; ) {
-            if (args[i].trim().equalsIgnoreCase("-c") || args[i].trim().equalsIgnoreCase("-x")) {
+            if (args[i].trim().equalsIgnoreCase("-ca") || args[i].trim().equalsIgnoreCase("-xa")) {
+                autoCreate = args[i].trim().equalsIgnoreCase("-ca");
+                if (i + 1 >= args.length) {
+                    err.println(usage);
+                    System.exit(1);
+                }
+                path = args[i + 1].trim();
+                if (!new File(path).exists()) {
+                    err.println("path " + path + " is not exists");
+                    System.exit(1);
+                }
+                i += 2;
+            } else if (args[i].trim().equalsIgnoreCase("-c") || args[i].trim().equalsIgnoreCase("-x")) {
                 create = args[i].trim().equalsIgnoreCase("-c");
                 if (i + 2 >= args.length) {
                     err.println(usage);
@@ -263,19 +278,50 @@ public class ArchiveUtils {
                 System.exit(1);
             }
         }
-        if (create) {
+        if (autoCreate) {
             try {
-                archive(path, archiveFile, gzip, includeDir);
+                archive(path, gzip, includeDir);
                 out.println("archive complete");
+                System.exit(0);
             } catch (Exception e) {
                 err.println("archive error " + e.getMessage());
+                System.exit(2);
             }
         } else {
             try {
-                deArchive(archiveFile, path, gzip);
+                deArchive(path, gzip);
                 out.println("deArchive complete");
+                System.exit(0);
             } catch (Exception e) {
                 err.println("deArchive error " + e.getMessage());
+                System.exit(2);
+            }
+        }
+        if (create) {
+            try {
+                if (!new File(path).exists()) {
+                    err.println("path " + path + " is not exists");
+                    System.exit(1);
+                }
+                archive(path, archiveFile, gzip, includeDir);
+                out.println("archive complete");
+                System.exit(0);
+            } catch (Exception e) {
+                err.println("archive error " + e.getMessage());
+                System.exit(2);
+            }
+        } else {
+            try {
+                if (!new File(archiveFile).exists()) {
+                    err.println("path " + archiveFile + " is not exists");
+                    System.exit(1);
+                }
+                deArchive(archiveFile, path, gzip);
+                out.println("deArchive complete");
+                System.exit(0);
+            } catch (Exception e) {
+                err.println("deArchive error " + e.getMessage());
+                System.exit(2);
             }
         }
     }
