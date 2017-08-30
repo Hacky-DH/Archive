@@ -18,31 +18,33 @@ public class ArchiveUtils {
     * archive
     * *****************************
      */
-    public static void archive(String srcPath) throws Exception {
-        archive(new File(srcPath));
+    public static void archive(String srcPath, boolean gzip, boolean includeDir) throws Exception {
+        archive(new File(srcPath), gzip, includeDir);
     }
 
-    public static void archive(File srcFile) throws Exception {
-        File destPath = FileUtils.getFile(srcFile.getParent(), srcFile.getName(), ".tar.gz");
-        archive(srcFile, destPath, true);
+    public static void archive(File srcFile, boolean gzip, boolean includeDir) throws Exception {
+        String ext = gzip ? ".tar.gz" : ".tar";
+        File destPath = FileUtils.getFile(srcFile.getParent(), srcFile.getName(), ext);
+        archive(srcFile, destPath, gzip, includeDir);
     }
 
-    public static void archive(String srcPath, String destPath)
+    public static void archive(String srcPath, String destPath, boolean gzip, boolean includeDir)
             throws Exception {
-        archive(new File(srcPath), destPath, true);
+        archive(new File(srcPath), destPath, gzip, includeDir);
     }
 
-    public static void archive(File srcFile, String destPath, boolean gzip) throws Exception {
-        archive(srcFile, new File(destPath), gzip);
+    public static void archive(File srcFile, String destPath, boolean gzip, boolean includeDir) throws Exception {
+        archive(srcFile, new File(destPath), gzip, includeDir);
     }
 
     /**
      * @param srcFile
      * @param destFile
-     * @param gzip     true use gzip
+     * @param gzip       true use gzip
+     * @param includeDir true use gzip
      * @throws Exception
      */
-    public static void archive(File srcFile, File destFile, boolean gzip) throws Exception {
+    public static void archive(File srcFile, File destFile, boolean gzip, boolean includeDir) throws Exception {
         TarArchiveOutputStream tarOut = null;
         try {
             if (gzip) {
@@ -52,7 +54,13 @@ public class ArchiveUtils {
                 tarOut = new TarArchiveOutputStream(new BufferedOutputStream(
                         new FileOutputStream(destFile)));
             }
-            archive(srcFile, tarOut, "");
+            if (!srcFile.isDirectory() || includeDir) {
+                archive(srcFile, tarOut, "");
+            } else {
+                for (File file : srcFile.listFiles()) {
+                    archive(file, tarOut, "");
+                }
+            }
         } finally {
             try {
                 if (tarOut != null) {
@@ -149,20 +157,20 @@ public class ArchiveUtils {
     * deArchive
     * *****************************
      */
-    public static void deArchive(String srcFile) throws Exception {
-        deArchive(new File(srcFile));
+    public static void deArchive(String srcFile, boolean gzip) throws Exception {
+        deArchive(new File(srcFile), gzip);
     }
 
-    public static void deArchive(File srcFile) throws Exception {
-        deArchive(srcFile, srcFile.getParent());
+    public static void deArchive(File srcFile, boolean gzip) throws Exception {
+        deArchive(srcFile, srcFile.getParent(), gzip);
     }
 
-    public static void deArchive(String srcFile, String destPath) throws Exception {
-        deArchive(new File(srcFile), destPath);
+    public static void deArchive(String srcFile, String destPath, boolean gzip) throws Exception {
+        deArchive(new File(srcFile), destPath, gzip);
     }
 
-    public static void deArchive(File srcFile, String destPath) throws Exception {
-        deArchive(srcFile, new File(destPath), true);
+    public static void deArchive(File srcFile, String destPath, boolean gzip) throws Exception {
+        deArchive(srcFile, new File(destPath), gzip);
     }
 
     /**
@@ -227,32 +235,48 @@ public class ArchiveUtils {
     public static void main(String[] args) {
         PrintStream out = System.out;
         PrintStream err = System.err;
-        final String usage = "archive <-c|-x> <archiveFile> <Path>";
+        final String usage = "archive <-c|-x> <archiveFile> <Path> [-g] [-i]";
         if (args.length < 3) {
             err.println(usage);
             System.exit(1);
         }
-        if (args[0].equalsIgnoreCase("-c")) {
-            String destFile = args[1].trim();
-            String srcPath = args[2].trim();
+        String archiveFile = "", path = "";
+        boolean create = true, gzip = false, includeDir = false;
+        for (int i = 0; i < args.length; ) {
+            if (args[i].trim().equalsIgnoreCase("-c") || args[i].trim().equalsIgnoreCase("-x")) {
+                create = args[i].trim().equalsIgnoreCase("-c");
+                if (i + 2 >= args.length) {
+                    err.println(usage);
+                    System.exit(1);
+                }
+                archiveFile = args[i + 1].trim();
+                path = args[i + 2].trim();
+                i += 3;
+            } else if (args[i].trim().equalsIgnoreCase("-g")) {
+                gzip = true;
+                ++i;
+            } else if (args[i].trim().equalsIgnoreCase("-i")) {
+                includeDir = true;
+                ++i;
+            } else {
+                err.println(usage);
+                System.exit(1);
+            }
+        }
+        if (create) {
             try {
-                archive(srcPath, destFile);
+                archive(path, archiveFile, gzip, includeDir);
                 out.println("archive complete");
             } catch (Exception e) {
                 err.println("archive error " + e.getMessage());
             }
-        } else if (args[0].equalsIgnoreCase("-x")) {
-            String srcFile = args[1].trim();
-            String destPath = args[2].trim();
+        } else {
             try {
-                deArchive(srcFile, destPath);
+                deArchive(archiveFile, path, gzip);
                 out.println("deArchive complete");
             } catch (Exception e) {
                 err.println("deArchive error " + e.getMessage());
             }
-        } else {
-            err.println(usage);
-            System.exit(1);
         }
     }
 }
